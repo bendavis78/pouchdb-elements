@@ -79,6 +79,7 @@
   var db = new PouchDB('dinosaur-facts');
 
   db.info().then(function(info) {
+    /* jshint camelcase: false */
     if (info.update_seq === 0) {
       return db.bulkDocs(demoData.dinos).then(function() {
         db.put(demoData.scores);

@@ -28,8 +28,11 @@ between different types of document. For example, one might select all "dino"
 documents by seting `startkey` to the prefix and `endkey` to the prefix followed
 by a large unicode value:
 
-    <pouchdb-collection db-name="mydb" data="{{data}}"
-      startkey="dino-" endkey="dino-&#xFFFF;"> 
+    <pouchdb-collection db-name="mydb" 
+      startkey="dino-" 
+      endkey="dino-&#xFFFF;"
+      data="{{data}}">
+    </pouchdb-collection> 
 
 For convenience, the `key-prefix` attribute can be used to accomplish the same
 thing:
@@ -54,13 +57,13 @@ To get all documents where "height" is greater than 3:
 
 The following selector operators are available:
 
-* $lt Match fields "less than" this one.
-* $gt Match fields "greater than" this one.
-* $lte Match fields "less than or equal to" this one.
-* $gte Match fields "greater than or equal to" this one.
-* $eq Match fields equal to this one.
-* $ne Match fields not equal to this one.
-* $exists True if the field should exist, false otherwise.
+  - $lt: Match fields "less than" this one.
+  - $gt: Match fields "greater than" this one.
+  - $lte: Match fields "less than or equal to" this one.
+  - $gte: Match fields "greater than or equal to" this one.
+  - $eq: Match fields equal to this one.
+  - $ne: Match fields not equal to this one.
+  - $exists: True if the field should exist, false otherwise.
 
 The selector property can be expressed as a JSON string in the element
 attribute (note: this must use valid JSON quoting):
@@ -295,6 +298,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
           index = {fields: fields};
         }
 
+        /* jshint camelcase: false */
         this._set_index(index);
         this.__data__._index = index;
         this.notifyPath('_index');
@@ -305,13 +309,13 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
       // Gather document id's that are part of the results
       /* jshint camelcase: false */
       var docIds = [];
-      var optDocIds = null;
+      var explicitDocIds = null;
       if (this.changeOpts.doc_ids && this.changeOpts.doc_ids.length) {
-        optDocIds = this.changeOpts.doc_ids;
+        explicitDocIds = this.changeOpts.doc_ids;
       }
       for (var i=0; i<this.data.length; i++) {
         var id = this.data[i].id;
-        if (optDocIds && optDocIds.indexOf(id) !== -1) {
+        if (explicitDocIds && explicitDocIds.indexOf(id) !== -1) {
           docIds.push(this.data[i].id);
         }
       }

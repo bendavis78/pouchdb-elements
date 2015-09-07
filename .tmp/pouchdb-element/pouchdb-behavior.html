@@ -1,6 +1,17 @@
 <link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="pouchdb.html">
 
+<!--
+`Polymer.PouchdbBehavior` provides a binding to a PouchDB database via the `db`
+property, which is set via the `db-name` attribute. The behavior also fires
+change events using PouchDB's [changes](http://pouchdb.com/api.html#changes)
+API.
+
+Elements using this behavior can implement `_getChangeOpts` to set specific 
+options for change events. The options returned from this method will
+override and extend any options set by the `changeOpts` property.
+-->
+
 <script>
   Polymer.PouchdbBehavior = {
     properties: {
@@ -81,7 +92,7 @@
       ];
       var changes = db.changes(changeOpts);
       events.forEach(function(event) {
-        changes.on(event, this._handleChangeEvent.bind(this));
+        changes.on(event, this._handleChangeEvent.bind(this, event));
       }.bind(this));
       return changes;
     },

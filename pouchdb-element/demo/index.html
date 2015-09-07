@@ -14,32 +14,42 @@
   </head>
   <body>
     <div class="horizontal center-justified layout">
+    <template is="dom-bind">
+
       <div class="vertical-section">
         <h3>Dinosaurs by Height</h3>
-        <template is="dom-bind">
-          <pouchdb-collection
-            db-name="dinosaur-facts"
-            key-prefix="dino-"
-            sort="height"
-            data="{{dinosaurs}}" log></pouchdb-collection>
-          <template is="dom-repeat" items="[[dinosaurs]]" as="dinosaur">
-            <h4>[[dinosaur.name]]</h4>
-            <span>Order: </span><span>[[dinosaur.order]]</span></span><br>
-            <span>Height: </span><span>[[dinosaur.height]]</span><span>m</span>
-          </template>
+
+        <pouchdb-collection
+          db-name="dinosaur-facts"
+          key-prefix="dino-"
+          sort="-height"
+          data="{{dinosaurs}}">
+        </pouchdb-collection>
+
+        <template is="dom-repeat" items="[[dinosaurs]]" as="dinosaur">
+          <h4>[[dinosaur.name]]</h4>
+          <span>Order: </span><span>[[dinosaur.order]]</span></span><br>
+          <span>Height: </span><span>[[dinosaur.height]]</span><span>m</span>
         </template>
       </div>
+
       <div class="vertical-section">
         <h3>Dinosaur Scores Document</h3>
-        <template is="dom-bind">
-          <pouchdb-document 
-            db-name="dinosaur-facts"
-            doc-id="scores"
-            data="{{dinosaurs}}"></pouchdb-document>
-          <x-pretty-json object=[[dinosaurs]]></x-pretty-json>
-        </template>
+
+        <pouchdb-document 
+          db-name="dinosaur-facts"
+          doc-id="scores"
+          data="{{dinosaurs}}">
+        </pouchdb-document>
+
+        <x-pretty-json object=[[dinosaurs]]></x-pretty-json>
       </div>
+
     </div>
-    <script src="demo.js"></script>
+    <script src="demo.js">
+      (function() {
+        var scope = document.querySelector('#scope');
+      });
+    </script>
   </body>
 </html>
