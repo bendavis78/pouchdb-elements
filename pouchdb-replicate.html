@@ -1,0 +1,101 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="pouchdb.html">
+
+<!--
+`pouchdb-sync` allows unidirectional and bidirection syncing between your local
+PouchDB and a remote CouchDB instance.
+
+For bidirectional sync, use the `sync` attribute:
+
+    <pouchdb-replicate db-name="my-db" sync="http://couch.example.com:5984">
+
+For unidirectional replication, use the `from` or `to` attributes. For example,
+to back up the local database to a remote server, use the following:
+
+    <pouchdb-replicate db-name="my-db" to="http://couch.example.com:5984">
+
+Repliation is not live by default. To enable live replication, use the live
+boolean attribute:
+
+    <pouchdb-replicate live db-name="my-db" sync="http://couch.example.com:5984">
+
+See the [PouchDB Replication](http://pouchdb.com/guides/replication.html)
+documentation for more info.
+-->
+
+<script>
+  Polymer({
+    is: 'pouchdb-sync',
+    behaviors: [Polymer.PouchdbBehavior],
+    properties: {
+      from: {
+        type: String,
+        value: null
+      },
+      to: {
+        type: String,
+        value: null
+      },
+      sync: {
+        type: String,
+        value: null
+      },
+      live: {
+        type: Boolean,
+        value: false
+      },
+      retry: {
+        type: Boolean,
+        value: false
+      },
+      opts: {
+        type: Object,
+        value: function() { 
+          return {};
+        }
+      },
+      _opts: {
+        type: Object,
+        computed: '_computeOpts(opts, live, retry)'
+      },
+      _replication: {
+        type: Object,
+        readOnly: true
+      }
+    },
+    observers: [
+      '_updateReplication(_opts.*, from, to, sync, live, retry)',
+    ],
+    _updateReplication: function() {
+      if (this._replication) {
+        this._replication.cancel();
+      }
+      var events, repl;
+      events = [
+        'change', 'paused', 'active', 'denied', 'complete', 'error'
+      ];
+      if (this.sync || (this.to === this.from)) {
+        repl = this.db.sync(this.sync || this.to, this._opts);
+      } else if (this.to) {
+        repl = this.db.replicate.to(this.to, this._opts);
+      } else if (this.from) {
+        repl = this.db.replicate.from(this.from, this._opts);
+      }
+      if (repl) {
+        events.forEach(function(event) {
+          repl.on(event, this._handleReplicationEvent.bind(this, event));
+        }.bind(this));
+      }
+      /* jshint camelcase: false */
+      this._set_replication(repl);
+    },
+    _handleReplicationEvent: function(eventName, info) {
+      this.fire('pouchdb-' + eventName, info);
+    },
+    _computeOpts: function(opts, live, retry) {
+      opts.live = live;
+      opts.retry = retry;
+      return opts;
+    }
+  });
+</script>
