@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=yes">
+    <title>PouchDB Element Demos</title>
+    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+    <link rel="import" href="../../paper-styles/paper-styles.html">
+    <link rel="import" href="../../paper-styles/demo-pages.html">
+    <link rel="import" href="../pouchdb-collection.html">
+    <link rel="import" href="../pouchdb-document.html">
+    <link rel="import" href="x-pretty-json.html">
+  </head>
+  <body>
+    <div class="horizontal center-justified layout">
+      <div class="vertical-section">
+        <h3>Dinosaurs by Height</h3>
+        <template is="dom-bind">
+          <pouchdb-collection
+            db-name="dinosaur-facts"
+            key-prefix="dino-"
+            sort="height"
+            data="{{dinosaurs}}" log></pouchdb-collection>
+          <template is="dom-repeat" items="[[dinosaurs]]" as="dinosaur">
+            <h4>[[dinosaur.name]]</h4>
+            <span>Order: </span><span>[[dinosaur.order]]</span></span><br>
+            <span>Height: </span><span>[[dinosaur.height]]</span><span>m</span>
+          </template>
+        </template>
+      </div>
+      <div class="vertical-section">
+        <h3>Dinosaur Scores Document</h3>
+        <template is="dom-bind">
+          <pouchdb-document 
+            db-name="dinosaur-facts"
+            doc-id="scores"
+            data="{{dinosaurs}}"></pouchdb-document>
+          <x-pretty-json object=[[dinosaurs]]></x-pretty-json>
+        </template>
+      </div>
+    </div>
+    <script src="demo.js"></script>
+  </body>
+</html>

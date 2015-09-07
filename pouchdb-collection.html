@@ -1,0 +1,744 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="pouchdb-behavior.html">
+
+<!--
+### Overview
+
+`pouchdb-collection` maintains an Array of filtered and sorted objects from a
+PouchDB database. The produced Array can be iterated over in other elements such
+as `<template is="dom-repeat">`.
+
+Example:
+
+    <pouchdb-collection db-name="mydb" 
+      key-prefix="dino-"
+      sort="name"
+      data="{{dinosaurs}}">
+    </pouchdb-collection>
+  
+    <template is="dom-repeat" items="[[dinosaurs]]" as="dinosaur">
+      <h4>[[dinosaur.name]]</h4>
+      <span>Height: </span><span>[[dinosaur.height]]</span><span>m</span>
+    </template>
+
+### Filtering documents by key prefix
+
+A common performance pattern in PouchDB is to use key prefixes to distinguish
+between different types of document. For example, one might select all "dino"
+documents by seting `startkey` to the prefix and `endkey` to the prefix followed
+by a large unicode value:
+
+    <pouchdb-collection db-name="mydb" data="{{data}}"
+      startkey="dino-" endkey="dino-&#xFFFF;"> 
+
+For convenience, the `key-prefix` attribute can be used to accomplish the same
+thing:
+
+    <pouchdb-collection db-name="mydb" data="{{data}}" key-prefix="data-"> 
+
+*Note*: `key-prefix` has no effect when used together with either the `startkey`
+or `endkey` attributes.
+
+
+### Using selectors
+
+A selector is a JSON object with fields as keys and a match object as
+the value. For example, to select objects where the "order" field is
+"ornithischia":
+     
+     {order: 'ornithischia'}
+
+To get all documents where "height" is greater than 3:
+
+     {height: {$gt: 3}}
+
+The following selector operators are available:
+
+* $lt Match fields "less than" this one.
+* $gt Match fields "greater than" this one.
+* $lte Match fields "less than or equal to" this one.
+* $gte Match fields "greater than or equal to" this one.
+* $eq Match fields equal to this one.
+* $ne Match fields not equal to this one.
+* $exists True if the field should exist, false otherwise.
+
+The selector property can be expressed as a JSON string in the element
+attribute (note: this must use valid JSON quoting):
+
+    <pouchdb-collection db-name="mydb"
+      selector='{"height": {"$gt": 3}}'
+      data="{{data}}"></pouchdb-collection>
+
+It can also be bound to a javascript object:
+
+    <pouchdb-collection db-name="mydb" 
+      selector="{{selector}}"
+      data="{{data}}">
+ 
+
+### Performance considerations
+
+In most situations, you'll almost always get better perfomance when using the
+document id (aka key) to filter results. When possible, use prefixes to
+distinguish between document types.
+
+For pagination, the `limit` and `skip` attributes are also available, but the
+same performance concerns as in CouchDB apply. Instead, use `startkey` and 
+`endkey` to limit results to a given range.
+-->
+
+<script>
+(function() {
+  var Promise = PouchDB.utils.Promise;
+
+  Polymer({
+    is: 'pouchdb-collection',
+
+    behaviors: [
+      Polymer.PouchdbBehavior
+    ],
+
+    properties: {
+      /**
+       * Defines a selector to filter the results using the PouchDB find()
+       * method. See the 
+       * [pouchdb-find](https://github.com/nolanlawson/pouchdb-find#readme)
+       * documentation for more info.
+       */
+      selector: {
+        type: Object,
+        value: function() {
+          return {};
+        }
+      },
+      fields: {
+        type: Array,
+        value: null
+      },
+      sort: {
+        type: Object,
+        value: null
+      },
+      keyPrefix: {
+        type: String,
+        value: null
+      },
+      startkey: {
+        type: String,
+        value: null
+      },
+      endkey: {
+        type: String,
+        value: null
+      },
+      limit: {
+        type: Number,
+        value: null
+      },
+      skip: {
+        type: Number,
+        value: null
+      },
+      disableCreateIndex: Boolean,
+      data: {
+        type: Array,
+        readOnly: true,
+        notify: true,
+        value: function() {
+          return [];
+        }
+      },
+      _startkey: {
+        type: String,
+        computed: '_computeStartkey(keyPrefix, startkey, endkey)',
+      },
+      _endkey: {
+        type: String,
+        computed: '_computeEndkey(keyPrefix, startkey, endkey)',
+        value: null
+      },
+      _selector: {
+        type: Object,
+        computed: '_computeSelector(selector.*, _sort.*, _startkey, _endkey)'
+      },
+      _sort: {
+        type: Object,
+        computed: '_computeSort(sort.*)'
+      },
+      _index: {
+        type: Object,
+        readOnly: true
+      },
+      _idMap: {
+        type: Object,
+        computed: '_computeIdMap(data.*)'
+      },
+      _findOpts: {
+        type: Object,
+        computed: '_computeFindOpts(_selector.*, fields.*, _sort.*, limit, skip)'
+      },
+    },
+
+    observers: [
+      '_updateIndex(db, _selector.*, _sort.*)',
+      '_updateResults(db, _selector.*, fields.*, _sort.*, limit, skip)'
+    ],
+
+    _test: function() {
+      console.log('sort changed: ', this._sort);
+    },
+
+    listeners: {
+      'pouchdb-update': '_onPouchUpdate',
+      'pouchdb-delete': '_updateResults',
+      'pouchdb-create': '_updateResults'
+    },
+
+    add: function() {
+      return this.db.put.apply(this.db, arguments);
+    },
+
+    remove: function() {
+      return this.db.remove.apply(this.db, arguments);
+    },
+
+    _computeStartkey: function(keyPrefix, startkey, endkey) {
+      if (startkey || endkey) {
+        // keyPrefix should have no effect if startkey or endkey are used
+        return startkey;
+      }
+      return keyPrefix;
+    },
+
+    _computeEndkey: function(keyPrefix, startkey, endkey) {
+      if (startkey || endkey) {
+        // keyPrefix should have no effect if startkey or endkey are used
+        return endkey;
+      }
+      return keyPrefix + '\uffff;';
+    },
+
+    _computeSelector: function() {
+      var selector = {};
+
+      if (this.selector) {
+        for (var k in this.selector) {
+          selector[k] = this.selector[k];
+        }
+      }
+
+      selector = normalizeSelector(selector);
+
+      // If using startkey/endkey, update _id filters
+      if (this._startkey || this._endkey) {
+        selector._id = selector._id || {};
+      }
+      if (this._startkey) {
+        selector._id.$gte = this._startkey;
+      }
+      if (this._endkey) {
+        selector._id.$lte = this._endkey;
+      }
+
+      // Make sure all sort fields are included in the selector
+      var field, fields = Object.keys(selector);
+      for (var i=0; i<this._sort.length; i++) {
+        field = Object.keys(this._sort[i])[0];
+        if (fields.indexOf(field) === -1) {
+          selector[field] = {$exists: true};
+        }
+      }
+      return selector;
+    },
+
+    _validateOpts: function() {
+      // TODO: could be >1 field
+      var selectorFields = Object.keys(this._selector);
+      var sortFields = this._sort.map(getKey) || [];
+
+      if (!oneSetIsSubArrayOfOther(selectorFields, sortFields)) {
+        throw new Error('conflicting sort and selector fields');
+      }
+    },
+
+    _computeSort: function() {
+      var items, sort = [];
+      if (typeof(this.sort) === 'string') {
+        items = this.sort.split(',').map(function(s) {return s.trim();});
+        var field, val;
+        for (var i=0; i<items.length; i++) {
+          val = items[i];
+          field = val.slice(1);
+          if (val[0] === '-') {
+            val = {};
+            val[field] = 'desc';
+          }
+          sort.push(val);
+        }
+      }
+      return normalizeSort(sort);
+    },
+
+    _updateIndex: function() {
+      this._validateOpts();
+
+      var userFields = getUserFields(this._selector, this._sort);
+      var fields = userFields.fields;
+      var sortOrder = userFields.sortOrder;
+
+      return this.db.getIndexes().then(function(result) {
+        var index = findBestMatchingIndex(
+          this._selector, fields, sortOrder, result.indexes
+        );
+
+        if (!index && !this.disableCreateIndex) {
+          index = {fields: fields};
+        }
+
+        this._set_index(index);
+        this.__data__._index = index;
+        this.notifyPath('_index');
+      }.bind(this));
+    },
+
+    _getChangeOpts: function(changeOpts) {
+      // Gather document id's that are part of the results
+      /* jshint camelcase: false */
+      var docIds = [];
+      var optDocIds = null;
+      if (this.changeOpts.doc_ids && this.changeOpts.doc_ids.length) {
+        optDocIds = this.changeOpts.doc_ids;
+      }
+      for (var i=0; i<this.data.length; i++) {
+        var id = this.data[i].id;
+        if (optDocIds && optDocIds.indexOf(id) !== -1) {
+          docIds.push(this.data[i].id);
+        }
+      }
+      changeOpts.doc_ids = docIds;
+      return changeOpts;
+    },
+
+    _computeIdMap: function() {
+      var map = {};
+      for (var i=0; i<this.data.length; i++) {
+        map[this.data[i]._id] = i;
+      }
+      return map;
+    },
+
+    _onPouchUpdate: function(event) {
+      var docId = event.detail.id;
+      this.data[this._idMap[docId]] = this.db.get(docId);
+    },
+
+    _ensureIndex: function() {
+      return new Promise(function(resolve) {
+        if (!this._index && !this.disableCreateIndex) {
+          var userFields = getUserFields(this._selector, this._sort);
+          var idx = {index: {fields: userFields.fields}};
+          this.db.createIndex(idx).then(function() {
+            return this._updateIndex();
+          }.bind(this)).then(function() {
+            resolve(this._index);
+          }.bind(this));
+        } else {
+          resolve(null);
+        }
+      }.bind(this));
+    },
+
+    _computeFindOpts: function() {
+      var findOpts = {
+        selector: this._selector,
+        sort: this._sort,
+        fields: this.fields,
+        limit: this.limit,
+        skip: this.skip
+      };
+      for (var k in findOpts) {
+        if (findOpts[k] === null) {
+          delete findOpts[k];
+        }
+      }
+      return findOpts;
+    },
+
+    _updateResults: function() {
+      return this._ensureIndex().then(function() {
+        return this.db.find(this._findOpts);
+      }.bind(this)).then(function(results) {
+        this._setData(results.docs);
+      }.bind(this));
+    }
+
+  });
+
+  var utils = PouchDB.utils;
+
+
+  /***************************************************************************
+   * The following functions were taken from pouchdb-find (Apache licence)
+   * https://github.com/nolanlawson/pouchdb-find/
+   **************************************************************************/
+
+  // normalize the "sort" value
+  function normalizeSort(sort) {
+    return sort && sort.map(function (sorting) {
+      if (typeof sorting === 'string') {
+        var obj = {};
+        obj[sorting] = 'asc';
+        return obj;
+      } else {
+        return sorting;
+      }
+    });
+  }
+
+  // normalize the selector
+  function normalizeSelector(input) {
+    var result = utils.clone(input);
+    var wasAnded = false;
+    if ('$and' in result) {
+      result = mergeAndedSelectors(result.$and);
+      wasAnded = true;
+    }
+    var fields = Object.keys(result);
+
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i];
+      var matcher = result[field];
+
+      if (typeof matcher !== 'object') {
+        matcher = {$eq: matcher};
+      } else if ('$ne' in matcher && !wasAnded) {
+        // I put these in an array, since there may be more than one
+        // but in the "mergeAnded" operation, I already take care of that
+        matcher.$ne = [matcher.$ne];
+      }
+      result[field] = matcher;
+    }
+
+    return result;
+  }
+
+  // determine the maximum number of fields
+  // we're going to need to query, e.g. if the user
+  // has selection ['a'] and sorting ['a', 'b'], then we
+  // need to use the longer of the two: ['a', 'b']
+  function getUserFields(selector, sort) {
+    var selectorFields = Object.keys(selector);
+    var sortFields = sort? sort.map(getKey) : [];
+    var userFields;
+    if (selectorFields.length > sortFields.length) {
+      userFields = selectorFields;
+    } else {
+      userFields = sortFields;
+    }
+
+    if (sortFields.length === 0) {
+      return {
+        fields: userFields
+      };
+    }
+
+    // sort according to the user's preferred sorting
+    userFields = userFields.sort(function (left, right) {
+      var leftIdx = sortFields.indexOf(left);
+      if (leftIdx === -1) {
+        leftIdx = Number.MAX_VALUE;
+      }
+      var rightIdx = sortFields.indexOf(right);
+      if (rightIdx === -1) {
+        rightIdx = Number.MAX_VALUE;
+      }
+      return leftIdx < rightIdx ? -1 : leftIdx > rightIdx ? 1 : 0;
+    });
+
+    return {
+      fields: userFields,
+      sortOrder: sort.map(getKey)
+    };
+  }
+
+  // find the best index, i.e. the one that matches the most fields
+  // in the user's query
+  function findBestMatchingIndex(selector, userFields, sortOrder, indexes) {
+    var matchingIndexes = findMatchingIndexes(selector, userFields, sortOrder, indexes);
+
+    if (matchingIndexes.length === 0) {
+      return null;
+    }
+    if (matchingIndexes.length === 1) {
+      return matchingIndexes[0];
+    }
+
+    var userFieldsMap = arrayToObject(userFields);
+
+    var scoreIndex = function(index) {
+      var indexFields = index.def.fields.map(getKey);
+      var score = 0;
+      for (var i = 0, len = indexFields.length; i < len; i++) {
+        var indexField = indexFields[i];
+        if (userFieldsMap[indexField]) {
+          score++;
+        }
+      }
+      return score;
+    };
+
+    return max(matchingIndexes, scoreIndex);
+  }
+
+  function getKey(obj) {
+    return Object.keys(obj)[0];
+  }
+
+  // collapse logically equivalent gt/gte values
+  function mergeGtGte(operator, value, fieldMatchers) {
+    if (typeof fieldMatchers.$eq !== 'undefined') {
+      // TODO: check for logical errors here
+      return; // do nothing
+    }
+    if (typeof fieldMatchers.$gte !== 'undefined') {
+      if (operator === '$gte') {
+        if (value > fieldMatchers.$gte) { // more specificity
+          fieldMatchers.$gte = value;
+        }
+      } else { // operator === '$gt'
+        if (value >= fieldMatchers.$gte) { // more specificity
+          delete fieldMatchers.$gte;
+          fieldMatchers.$gt = value;
+        }
+      }
+    } else if (typeof fieldMatchers.$gt !== 'undefined') {
+      if (operator === '$gte') {
+        if (value > fieldMatchers.$gt) { // more specificity
+          delete fieldMatchers.$gt;
+          fieldMatchers.$gte = value;
+        }
+      } else { // operator === '$gt'
+        if (value > fieldMatchers.$gt) { // more specificity
+          fieldMatchers.$gt = value;
+        }
+      }
+    } else {
+      fieldMatchers[operator] = value;
+    }
+  }
+
+  // collapse logically equivalent lt/lte values
+  function mergeLtLte(operator, value, fieldMatchers) {
+    if (typeof fieldMatchers.$eq !== 'undefined') {
+      // TODO: check for logical errors here
+      return; // do nothing
+    }
+    if (typeof fieldMatchers.$lte !== 'undefined') {
+      if (operator === '$lte') {
+        if (value < fieldMatchers.$lte) { // more specificity
+          fieldMatchers.$lte = value;
+        }
+      } else { // operator === '$gt'
+        if (value <= fieldMatchers.$lte) { // more specificity
+          delete fieldMatchers.$lte;
+          fieldMatchers.$lt = value;
+        }
+      }
+    } else if (typeof fieldMatchers.$lt !== 'undefined') {
+      if (operator === '$lte') {
+        if (value < fieldMatchers.$lt) { // more specificity
+          delete fieldMatchers.$lt;
+          fieldMatchers.$lte = value;
+        }
+      } else { // operator === '$gt'
+        if (value < fieldMatchers.$lt) { // more specificity
+          fieldMatchers.$lt = value;
+        }
+      }
+    } else {
+      fieldMatchers[operator] = value;
+    }
+  }
+
+  // combine $ne values into one array
+  function mergeNe(value, fieldMatchers) {
+    if (typeof fieldMatchers.$eq !== 'undefined') {
+      // TODO: check for logical errors here
+      return; // do nothing
+    }
+    if ('$ne' in fieldMatchers) {
+      // there are many things this could "not" be
+      fieldMatchers.$ne.push(value);
+    } else { // doesn't exist yet
+      fieldMatchers.$ne = [value];
+    }
+  }
+
+  // add $eq into the mix
+  function mergeEq(value, fieldMatchers) {
+    // these all have less specificity than the $eq
+    // TODO: check for user errors here
+    delete fieldMatchers.$gt;
+    delete fieldMatchers.$gte;
+    delete fieldMatchers.$lt;
+    delete fieldMatchers.$lte;
+    delete fieldMatchers.$ne;
+    fieldMatchers.$eq = value;
+  }
+
+  // flatten an array of selectors joined by an $and operator
+  function mergeAndedSelectors(selectors) {
+    // sort to ensure that e.g. if the user specified
+    // $and: [{$gt: 'a'}, {$gt: 'b'}], then it's collapsed into
+    // just {$gt: 'b'}
+    var res = {};
+
+    selectors.forEach(function (selector) {
+      Object.keys(selector).forEach(function (field) {
+        var matcher = selector[field];
+        if (typeof matcher !== 'object') {
+          matcher = {$eq: matcher};
+        }
+        var fieldMatchers = res[field] = res[field] || {};
+        Object.keys(matcher).forEach(function (operator) {
+          var value = matcher[operator];
+
+          if (operator === '$gt' || operator === '$gte') {
+            return mergeGtGte(operator, value, fieldMatchers);
+          } else if (operator === '$lt' || operator === '$lte') {
+            return mergeLtLte(operator, value, fieldMatchers);
+          } else if (operator === '$ne') {
+            return mergeNe(value, fieldMatchers);
+          } else if (operator === '$eq') {
+            return mergeEq(value, fieldMatchers);
+          }
+          fieldMatchers[operator] = value;
+        });
+      });
+    });
+
+    return res;
+  }
+
+  // first pass to try to find fields that will need to be sorted in-memory
+  // check that at least one field in the user's query is represented
+  // in the index. order matters in the case of sorts
+  function checkIndexFieldsMatch(indexFields, sortOrder, fields) {
+    if (sortOrder) {
+      // array has to be a strict subarray of index array. furthermore,
+      // the sortOrder fields need to all be represented in the index
+      var sortMatches = oneArrayIsStrictSubArrayOfOther(sortOrder, indexFields);
+      var selectorMatches = oneArrayIsSubArrayOfOther(fields, indexFields);
+
+      return sortMatches && selectorMatches;
+    }
+
+    // all of the user's specified fields still need to be
+    // on the left side of the index array, although the order
+    // doesn't matter
+    return oneSetIsSubArrayOfOther(fields, indexFields);
+  }
+
+  // check all the index fields for usages of '$ne'
+  // e.g. if the user queries {foo: {$ne: 'foo'}, bar: {$eq: 'bar'}},
+  // then we can neither use an index on ['foo'] nor an index on
+  // ['foo', 'bar'], but we can use an index on ['bar'] or ['bar', 'foo']
+  function checkFieldsLogicallySound(indexFields, selector) {
+    var firstField = indexFields[0];
+    var matcher = selector[firstField];
+
+    var isInvalidNe = Object.keys(matcher).length === 1 &&
+      getKey(matcher) === '$ne';
+
+    return !isInvalidNe;
+  }
+
+  function checkIndexMatches(index, sortOrder, fields, selector) {
+    var indexFields = index.def.fields.map(getKey);
+    var fieldsMatch = checkIndexFieldsMatch(indexFields, sortOrder, fields);
+    if (!fieldsMatch) {
+      return false;
+    }
+    var logicallySound = checkFieldsLogicallySound(indexFields, selector);
+    return logicallySound;
+  }
+
+  // the algorithm is very simple:
+  // take all the fields the user supplies, and if those fields
+  // are a strict subset of the fields in some index,
+  // then use that index
+  function findMatchingIndexes(selector, userFields, sortOrder, indexes) {
+    var res = [];
+    for (var i = 0, iLen = indexes.length; i < iLen; i++) {
+      var index = indexes[i];
+      var indexMatches = checkIndexMatches(index, sortOrder, userFields, selector);
+      if (indexMatches) {
+        res.push(index);
+      }
+    }
+    return res;
+  }
+
+  // e.g. ['a'], ['a', 'b'] is true, but ['b'], ['a', 'b'] is false
+  function oneArrayIsSubArrayOfOther(left, right) {
+    for (var i = 0, len = Math.min(left.length, right.length); i < len; i++) {
+      if (left[i] !== right[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // e.g.['a', 'b', 'c'], ['a', 'b'] is false
+  function oneArrayIsStrictSubArrayOfOther(left, right) {
+
+    if (left.length > right.length) {
+      return false;
+    }
+
+    return oneArrayIsSubArrayOfOther(left, right);
+  }
+
+  // same as above, but treat the left array as an unordered set
+  // e.g. ['b', 'a'], ['a', 'b', 'c'] is true, but ['c'], ['a', 'b', 'c'] is false
+  function oneSetIsSubArrayOfOther(left, right) {
+    left = left.slice();
+    for (var i = 0, len = right.length; i < len; i++) {
+      var field = right[i];
+      if (!left.length) {
+        break;
+      }
+      var leftIdx = left.indexOf(field);
+      if (leftIdx === -1) {
+        return false;
+      } else {
+        left.splice(leftIdx, 1);
+      }
+    }
+    return true;
+  }
+
+  function arrayToObject(arr) {
+    var res = {};
+    for (var i = 0, len = arr.length; i < len; i++) {
+      res[arr[i]] = true;
+    }
+    return res;
+  }
+
+  function max(arr, fun) {
+    var m = null;
+    var maxScore = -1;
+    for (var i = 0, len = arr.length; i < len; i++) {
+      var element = arr[i];
+      var score = fun(element);
+      if (score > maxScore) {
+        maxScore = score;
+        m = element;
+      }
+    }
+    return m;
+  }
+
+})();
+</script>

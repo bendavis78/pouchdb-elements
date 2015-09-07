@@ -1,0 +1,71 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="pouchdb.html">
+<link rel="import" href="pouchdb-behavior.html">
+
+<!--
+    <pouchdb-document db-name="mydb" doc-id="dino-1" data="{{dinosaur}}">
+
+In the above example, if the `dinosaur` object is data-bound elsewhere via
+Polymer's data-binding system, changes to the document will be automatically
+reflected in the remote document and any other clients referencing that
+document.
+-->
+
+<script>
+  Polymer({
+    is: 'pouchdb-document',
+
+    behaviors: [Polymer.PouchdbBehavior],
+
+    properties: {
+      /**
+       * The id of the corresponding document.
+       */
+      docId: {
+        type: String,
+        notify: true,
+        observer: '_docIdChanged'
+      },
+
+      /**
+       * The `data` object for the corresponding document.
+       */
+      data: {
+        type: Object,
+        notify: true
+      },
+    },
+
+    listeners: {
+      'pouchdb-update': '_onUpdate'
+    },
+
+    observers: [
+      '_dataChanged(data.*)'
+    ],
+
+    _dataChanged: function() {
+      this.db.get(this.docId).then(function(doc) {
+        this.db.put(this.data, this.docId, doc._rev);
+      }).catch(function(err) {
+        this._error(err);
+      });
+    },
+
+    _onUpdate: function(info) {
+      if (info.id === this.docId) {
+        this._setData(info.data); 
+      }
+    },
+
+    _getChangeOpts: function(changeOpts) {
+      /* jshint camelcase: false */
+      changeOpts.doc_ids = [this.docId];
+      return changeOpts;
+    },
+
+    _docIdChanged: function(docId) {
+      this.notifyPath('_changeOpts.doc_ids');
+    }
+  });
+</script>

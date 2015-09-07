@@ -1,0 +1,23 @@
+{
+  "name": "pouchdb-element",
+  "version": "1.0.0",
+  "private": true,
+  "main": [
+    "pouchdb-collection.html",
+    "pouchdb-document.html",
+    "pouchdb-behavior.html"
+  ],
+  "dependencies": {
+    "polymer": "polymer/polymer#^1.0.0",
+    "pouchdb": "^4.0.0",
+    "pouchdb-find": "^0.3.5"
+  },
+  "devDependencies": {
+    "iron-component-page": "polymerelements/iron-component-page#1.0.2",
+    "promise-polyfill": "polymerlabs/promise-polyfill#^1.0.0",
+    "test-fixture": "polymerelements/test-fixture#^1.0.0",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#^0.7.0",
+    "paper-styles": "polymerelements/paper-styles#^1.0.0",
+    "web-component-tester": "*"
+  }
+}
