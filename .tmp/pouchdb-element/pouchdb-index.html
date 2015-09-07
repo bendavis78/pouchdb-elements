@@ -1,0 +1,34 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="pouchdb.html">
+
+<script>
+  Polymer({
+    is: 'pouchdb-index',
+    behaviors: [Polymer.PouchdbBehavior],
+    properties: {
+      fields: Array,
+      name: String,
+      ddoc: String,
+      type: String
+    },
+    observers: [
+      '_createIndex(fields, name, ddoc, type)'
+    ],
+    _createIndex: function(fields, name, ddoc, type) {
+      if (!(fields && fields.length && name)) {
+        return;
+      }
+      var index = {
+        fields: fields,
+        name: name
+      };
+      if (ddoc) {
+        index.ddoc = ddoc;
+      }
+      if (type) {
+        index.type = type;
+      }
+      this.db.createIndex({index: index});
+    }
+  });
+</script>

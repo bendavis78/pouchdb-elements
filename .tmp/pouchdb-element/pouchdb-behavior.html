@@ -1,0 +1,114 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="pouchdb.html">
+
+<script>
+  Polymer.PouchdbBehavior = {
+    properties: {
+      /**
+       * The name of the PouchDB database in which the document exists.
+       */
+      dbName: String,
+
+      /**
+       * The PouchDB object corresponding to `dbname`.
+       */
+      db: {
+        type: Object,
+        notify: true,
+        computed: '_getDB(dbName)'
+      },
+
+      /** 
+       * An event emitter that will emit a 'change' event on each document
+       * change, a 'complete' event when all the changes have been processed,
+       * and an 'error' event when an error occurs. In addition to the 'change'
+       * event, any change will also emit a 'create', 'update', or 'delete'
+       * event.
+       */
+      changes: {
+        type: Object,
+        readOnly: true,
+        computed: '_getChanges(db, _changeOpts)'
+      },
+
+      /**
+       * If `true`, debug information is logged to the console
+       */
+      log: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * Options for listening to db changes that are emitted by the `changes`
+       * property.
+       */
+      changeOpts: {
+        type: Object,
+        value: function() {
+          return {};
+        },
+      },
+
+      _changeOpts: {
+        type: Object,
+        computed: '__computeChangeOpts(changeOpts, data.*)'
+      }
+    },
+
+    _getDB: function(dbName) {
+      if (!dbName) {
+        return;
+      }
+      return new PouchDB(dbName);
+    },
+
+    __computeChangeOpts: function(changeOpts) {
+      // make a deep copy of changeOpts and pass to _getChangeOpts
+      return this._getChangeOpts(JSON.parse(JSON.stringify(changeOpts)));
+    },
+
+    _getChangeOpts: function(changeOpts) {
+      return changeOpts;
+    },
+
+    _getChanges: function(db, changeOpts) {
+      if (!changeOpts) {
+        return null;
+      }
+      var events = [
+        'change', 'create', 'update', 'delete', 'complete', 'error'
+      ];
+      var changes = db.changes(changeOpts);
+      events.forEach(function(event) {
+        changes.on(event, this._handleChangeEvent.bind(this));
+      }.bind(this));
+      return changes;
+    },
+
+    _handleChangeEvent: function(eventName, info) {
+      this.fire('pouchdb-' + eventName, info);
+    },
+
+    _log: function() {
+      var args;
+
+      if (this.log) {
+        args = Array.prototype.slice.call(arguments).map(function(arg) {
+          if (arg && typeof arg.val === 'function') {
+            return arg.val();
+          }
+
+          return arg;
+        });
+
+        console.log.apply(console, args);
+      }
+    },
+
+    _error: function() {
+      console.error.apply(console, arguments);
+    }
+
+  };
+</script>
