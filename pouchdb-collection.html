@@ -213,7 +213,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
 
     remove: function(doc) {
       return this.db.remove(doc._id, doc._rev).then(function() {
-        this._updateResults();
+        return this._updateResults();
       }.bind(this));
     },
 
@@ -345,7 +345,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
 
     _onPouchUpdate: function(event) {
       var docId = event.detail.id;
-      this.data[this._idMap[docId]] = this.db.get(docId);
+      this.set('data.' + this._idMap[docId], this.db.get(docId));
     },
 
     _ensureIndex: function() {
@@ -387,7 +387,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
       }.bind(this)).then(function(results) {
         this._setData(results.docs);
       }.bind(this));
-    }
+    },
 
   });
 
