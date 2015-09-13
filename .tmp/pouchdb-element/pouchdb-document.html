@@ -37,6 +37,16 @@ the remote document and any other clients referencing that document.
         type: Object,
         notify: true
       },
+
+      _receivingDbChanges: {
+        type: Boolean,
+        value: false
+      },
+
+      _puttingDbChanges: {
+        type: Boolean,
+        value: false
+      }
     },
 
     listeners: {
@@ -45,22 +55,34 @@ the remote document and any other clients referencing that document.
 
     observers: [
       '_docIdChanged(db, docId)',
-      '_dataChanged(db, docId, data.*)'
+      '_dataChanged(db, data.*)'
     ],
+
+    _updateFromDb: function(data) {
+      this._receivingDbChanges = true;
+      this.set('data', data);
+      this._receivingDbChanges = false;
+    },
 
     _docIdChanged: function(db, docId) {
       db.get(docId).then(function(data) {
-        this.set('data', data);
+        this._updateFromDb(data);
       }.bind(this));
     },
 
-    _dataChanged: function(db, docId) {
-      db.put(this.data, docId, this.data._rev);
+    _dataChanged: function() {
+      if (!this._receivingDbChanges && !this._puttingDbChanges) {
+        this._puttingDbChanges = true;
+        this.db.put(this.data).then(function(result) {
+          this.set('data._rev', result.rev);
+          this._puttingDbChanges = false;
+        }.bind(this));
+      }
     },
 
     _onUpdate: function(info) {
       if (info.id === this.docId) {
-        this.set('data', info.data); 
+        this._updateFromDb(info.data);
       }
     },
 

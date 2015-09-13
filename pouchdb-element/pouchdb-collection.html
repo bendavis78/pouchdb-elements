@@ -37,7 +37,7 @@ by a large unicode value:
 For convenience, the `key-prefix` attribute can be used to accomplish the same
 thing:
 
-    <pouchdb-collection db-name="mydb" data="{{data}}" key-prefix="data-"> 
+    <pouchdb-collection db-name="mydb" data="{{data}}" key-prefix="dino-"> 
 
 *Note*: `key-prefix` has no effect when used together with either the `startkey`
 or `endkey` attributes.
@@ -48,7 +48,7 @@ or `endkey` attributes.
 A selector is a JSON object with fields as keys and a match object as
 the value. For example, to select objects where the "order" field is
 "ornithischia":
-     
+
      {order: 'ornithischia'}
 
 To get all documents where "height" is greater than 3:
@@ -151,6 +151,15 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
           return [];
         }
       },
+      idFunc: {
+        type: Object,
+        value: function() {
+          return function() {
+            var d = new Date();
+            return d.toISOString();
+          }.bind(this);
+        }
+      },
       _startkey: {
         type: String,
         computed: '_computeStartkey(keyPrefix, startkey, endkey)',
@@ -187,22 +196,25 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
       '_updateResults(db, _selector.*, fields.*, _sort.*, limit, skip)'
     ],
 
-    _test: function() {
-      console.log('sort changed: ', this._sort);
-    },
-
     listeners: {
       'pouchdb-update': '_onPouchUpdate',
       'pouchdb-delete': '_updateResults',
       'pouchdb-create': '_updateResults'
     },
 
-    add: function() {
-      return this.db.put.apply(this.db, arguments);
+    add: function(data, id) {
+      id = id || (this.keyPrefix || '') + this.idFunc();
+      return this.db.put(data, id).then(function() {
+        return this._updateResults();
+      }.bind(this)).then(function() {
+        return id;
+      });
     },
 
-    remove: function() {
-      return this.db.remove.apply(this.db, arguments);
+    remove: function(doc) {
+      return this.db.remove(doc._id, doc._rev).then(function() {
+        return this._updateResults();
+      }.bind(this));
     },
 
     _computeStartkey: function(keyPrefix, startkey, endkey) {
@@ -333,7 +345,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
 
     _onPouchUpdate: function(event) {
       var docId = event.detail.id;
-      this.data[this._idMap[docId]] = this.db.get(docId);
+      this.set('data.' + this._idMap[docId], this.db.get(docId));
     },
 
     _ensureIndex: function() {
@@ -361,7 +373,8 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
         skip: this.skip
       };
       for (var k in findOpts) {
-        if (findOpts[k] === null) {
+        var v = findOpts[k];
+        if (v === null || (v instanceof Array && !v.length)) {
           delete findOpts[k];
         }
       }
@@ -374,7 +387,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
       }.bind(this)).then(function(results) {
         this._setData(results.docs);
       }.bind(this));
-    }
+    },
 
   });
 
