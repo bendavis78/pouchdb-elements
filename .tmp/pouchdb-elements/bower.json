@@ -1,7 +1,7 @@
 {
-  "name": "pouchdb-element",
+  "name": "pouchdb-elements",
   "version": "1.0.0",
-  "private": true,
+  "private": false,
   "main": [
     "pouchdb-collection.html",
     "pouchdb-document.html",

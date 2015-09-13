@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bendavis78/pouchdb-element.git"
+    "url": "git+https://github.com/bendavis78/pouchdb-elements.git"
   },
   "keywords": [
     "web-component",
@@ -36,7 +36,7 @@
   "author": "Ben Davis <bendavis78@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/bendavis78/pouchdb-element/issues"
+    "url": "https://github.com/bendavis78/pouchdb-elements/issues"
   },
-  "homepage": "https://github.com/bendavis78/pouchdb-element#readme"
+  "homepage": "https://github.com/bendavis78/pouchdb-elements#readme"
 }
