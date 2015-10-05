@@ -87,8 +87,8 @@ the remote document and any other clients referencing that document.
     },
 
     _getChangeOpts: function(changeOpts) {
-      /* jshint camelcase: false */
       if (this.docId) {
+        /* jshint camelcase: false */
         changeOpts.doc_ids = [this.docId];
       }
       return changeOpts;

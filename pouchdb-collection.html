@@ -319,9 +319,9 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
 
     _getChangeOpts: function(changeOpts) {
       // Gather document id's that are part of the results
-      /* jshint camelcase: false */
       var docIds = [];
       var explicitDocIds = null;
+      /* jshint camelcase: false */
       if (this.changeOpts.doc_ids && this.changeOpts.doc_ids.length) {
         explicitDocIds = this.changeOpts.doc_ids;
       }
