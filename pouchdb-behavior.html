@@ -6,10 +6,6 @@
 property, which is set via the `db-name` attribute. The behavior also fires
 change events using PouchDB's [changes](http://pouchdb.com/api.html#changes)
 API.
-
-Elements using this behavior can implement `_getChangeOpts` to set specific 
-options for change events. The options returned from this method will
-override and extend any options set by the `changeOpts` property.
 -->
 
 <script>
@@ -31,7 +27,7 @@ override and extend any options set by the `changeOpts` property.
       },
 
       /**
-       * If `true`, debug information is logged to the console
+       * If `true`, basic debug information is logged to the console
        */
       log: {
         type: Boolean,
@@ -47,11 +43,13 @@ override and extend any options set by the `changeOpts` property.
         value: function() {
           return {};
         },
-      }
+      },
+
+      debug: Boolean
     },
 
     observers: [
-      '_updateChangeListeners(db, changeOpts, _listenEvents, data.*)'
+      '_updateChangeListeners(db, changeOpts.*, _listenEvents)'
     ],
 
     _getDB: function(dbName) {
@@ -61,20 +59,14 @@ override and extend any options set by the `changeOpts` property.
       return new PouchDB(dbName);
     },
 
-    _getChangeOpts: function(changeOpts) {
-      // this can be overridden by the implementing element to get the final changeOpts
-      return changeOpts;
-    },
-
-    _updateChangeListeners: function(db, changeOpts) {
+    _updateChangeListeners: function() {
       // defaults
       var opts = {
         live: true
       };
-      // make a deep copy of changeOpts and pass to _getChangeOpts
-      var overrides = this._getChangeOpts(JSON.parse(JSON.stringify(changeOpts)));
-      for (var k in overrides) {
-        opts[k] = overrides[k]; 
+
+      for (var k in this.changeOpts) {
+        opts[k] = this.changeOpts[k]; 
       }
 
       if (this._changes) {
@@ -83,8 +75,8 @@ override and extend any options set by the `changeOpts` property.
 
       this.db.info().then(function(info) {
         /* jshint camelcase: false */
-        changeOpts.since = info.update_seq;
-        this._changes = this.db.changes(changeOpts);
+        opts.since = info.update_seq;
+        this._changes = this.db.changes(opts);
         this._listenEvents.forEach(function(event) {
           this._changes.on(event, this._handleChangeEvent.bind(this, event));
         }, this);
@@ -92,7 +84,7 @@ override and extend any options set by the `changeOpts` property.
     },
 
     _handleChangeEvent: function(eventName, info) {
-      console.log(this.tagName.toLowerCase() + '#' + this.id, eventName, info);
+      //console.log(this.tagName.toLowerCase()+'#'+this.id, eventName, info);
       this.fire('pouchdb-' + eventName, info);
     },
 
@@ -119,11 +111,12 @@ override and extend any options set by the `changeOpts` property.
       // We override addEventListener so that we can selectively keep track of 
       // which pouchdb events we need to handle.
       if (eventName.slice(0, 8) === 'pouchdb-') {
+        var pouchEvent = eventName.slice(8);
         if (!this._listenEvents) {
           this._listenEvents = [];
         }
-        if (this._listenEvents.indexOf(eventName) === -1) {
-          this.push('_listenEvents', eventName);
+        if (this._listenEvents.indexOf(pouchEvent) === -1) {
+          this.push('_listenEvents', pouchEvent);
         }
       }
       HTMLElement.prototype.addEventListener.apply(this, arguments);

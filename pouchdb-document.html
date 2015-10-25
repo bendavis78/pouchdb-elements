@@ -31,11 +31,22 @@ the remote document and any other clients referencing that document.
       },
 
       /**
+       * The current revision of the document
+       */
+      rev: {
+        type: String,
+        notify: true
+      },
+
+      /**
        * The `data` object for the corresponding document.
        */
       data: {
         type: Object,
-        notify: true
+        notify: true,
+        value: function() {
+          return {};
+        }
       },
 
       _receivingDbChanges: {
@@ -58,25 +69,44 @@ the remote document and any other clients referencing that document.
       '_dataChanged(db, data.*)'
     ],
 
+    putData: function(data) {
+      this._puttingDbChanges = true;
+      return this.db.put(data, this.docId, data._rev).then(function(result) {
+        this.set('data._rev', result.rev);
+        this._puttingDbChanges = false;
+      }.bind(this)).catch(function(error) {
+        this._puttingDbChanges = false;
+        throw error;
+      }.bind(this));
+    },
+
     _updateFromDb: function(data) {
       this._receivingDbChanges = true;
       this.set('data', data);
+      this.set('docId', data._id);
+      this.set('rev', data._rev);
       this._receivingDbChanges = false;
     },
 
-    _docIdChanged: function(db, docId) {
-      db.get(docId).then(function(data) {
+    _docIdChanged: function(db, docId, rev) {
+      if (!docId) {
+        this.set('data', {});
+        this.set('changeOps.doc_ids', null);
+        return;
+      }
+      var options = {};
+      if (rev) {
+        options.rev = rev;
+      }
+      db.get(docId, options).then(function(data) {
         this._updateFromDb(data);
+        this.set('changeOpts.doc_ids', [this.docId]);
       }.bind(this));
     },
 
     _dataChanged: function() {
-      if (!this._receivingDbChanges && !this._puttingDbChanges) {
-        this._puttingDbChanges = true;
-        this.db.put(this.data).then(function(result) {
-          this.set('data._rev', result.rev);
-          this._puttingDbChanges = false;
-        }.bind(this));
+      if (this.docId && !this._receivingDbChanges && !this._puttingDbChanges) {
+        this.putData(this.data, this.docId, this._rev);
       }
     },
 
@@ -86,13 +116,6 @@ the remote document and any other clients referencing that document.
       }
     },
 
-    _getChangeOpts: function(changeOpts) {
-      if (this.docId) {
-        /* jshint camelcase: false */
-        changeOpts.doc_ids = [this.docId];
-      }
-      return changeOpts;
-    },
 
   });
 </script>

@@ -177,7 +177,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
         type: Object,
         computed: '_computeSort(sort.*)'
       },
-      _index: {
+      index: {
         type: Object,
         readOnly: true
       },
@@ -192,8 +192,9 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
     },
 
     observers: [
+      '_updateChangesFilter(db, _startKey, _endKey)',
       '_updateIndex(db, _selector.*, _sort.*)',
-      '_updateResults(db, _selector.*, fields.*, _sort.*, limit, skip)'
+      '_updateResults(db, _selector.*, fields.*, _sort.*, limit, skip, index)'
     ],
 
     listeners: {
@@ -263,6 +264,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
           selector[field] = {$exists: true};
         }
       }
+
       return selector;
     },
 
@@ -304,38 +306,14 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
       return this.db.getIndexes().then(function(result) {
         var index = findBestMatchingIndex(
           this._selector, fields, sortOrder, result.indexes
-        );
+        ) || null;
 
-        if (!index && !this.disableCreateIndex) {
-          index = {fields: fields};
-        }
-
-        /* jshint camelcase: false */
-        this._set_index(index);
-        this.__data__._index = index;
-        this.notifyPath('_index');
+        this._setIndex(index);
       }.bind(this));
     },
 
-    _getChangeOpts: function(changeOpts) {
-      // Gather document id's that are part of the results
-      var docIds = [];
-      var explicitDocIds = null;
-      /* jshint camelcase: false */
-      if (this.changeOpts.doc_ids && this.changeOpts.doc_ids.length) {
-        explicitDocIds = this.changeOpts.doc_ids;
-      }
-      for (var i=0; i<this.data.length; i++) {
-        var id = this.data[i].id;
-        if (explicitDocIds && explicitDocIds.indexOf(id) !== -1) {
-          docIds.push(this.data[i].id);
-        }
-      }
-      changeOpts.doc_ids = docIds;
-      return changeOpts;
-    },
-
     _computeIdMap: function() {
+      // map of docId to index in local data array;
       var map = {};
       for (var i=0; i<this.data.length; i++) {
         map[this.data[i]._id] = i;
@@ -345,18 +323,25 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
 
     _onPouchUpdate: function(event) {
       var docId = event.detail.id;
-      this.set('data.' + this._idMap[docId], this.db.get(docId));
+      //this._log(event.type, event.detail);
+      this.db.get(docId).then(function(data) {
+        this.set('data.' + this._idMap[docId], data);
+      }.bind(this));
+    },
+
+    _updateChangesFilter(db, startkey, endkey) {
+      //this._log('_updateChangesFilter', arguments);
     },
 
     _ensureIndex: function() {
       return new Promise(function(resolve) {
-        if (!this._index && !this.disableCreateIndex) {
+        if (!this.index && !this.disableCreateIndex) {
           var userFields = getUserFields(this._selector, this._sort);
           var idx = {index: {fields: userFields.fields}};
           this.db.createIndex(idx).then(function() {
             return this._updateIndex();
           }.bind(this)).then(function() {
-            resolve(this._index);
+            resolve(this.index);
           }.bind(this));
         } else {
           resolve(null);
@@ -382,10 +367,12 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
     },
 
     _updateResults: function() {
+      // TODO: there is probably a more performant way to do this using change events, but this
+      // is also less prone to bugs.
       return this._ensureIndex().then(function() {
         return this.db.find(this._findOpts);
-      }.bind(this)).then(function(results) {
-        this._setData(results.docs);
+      }.bind(this)).then(function(result) {
+        this._setData(result.docs);
       }.bind(this));
     },
 
