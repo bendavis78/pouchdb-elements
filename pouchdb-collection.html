@@ -373,6 +373,10 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
         return this.db.find(this._findOpts);
       }.bind(this)).then(function(result) {
         this._setData(result.docs);
+        if (!this._loaded) {
+          this.fire('data-loaded', result, {bubbles: false});
+          this._loaded = true;
+        }
       }.bind(this));
     },
 

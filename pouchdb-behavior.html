@@ -84,7 +84,6 @@ API.
     },
 
     _handleChangeEvent: function(eventName, info) {
-      //console.log(this.tagName.toLowerCase()+'#'+this.id, eventName, info);
       this.fire('pouchdb-' + eventName, info);
     },
 
