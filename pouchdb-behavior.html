@@ -2,20 +2,35 @@
 <link rel="import" href="pouchdb.html">
 
 <!--
-`Polymer.PouchdbBehavior` provides a binding to a PouchDB database via the `db`
-property, which is set via the `db-name` attribute. The behavior also fires
-change events using PouchDB's [changes](http://pouchdb.com/api.html#changes)
-API.
+`PouchdbElements.PouchdbBehavior` provides a binding to a PouchDB database via
+the `db` property, which is set via the `db-name` attribute. The behavior also
+fires change events using PouchDB's
+[changes](http://pouchdb.com/api.html#changes) API.
 -->
 
 <script>
 (function() {
-  Polymer.PouchdbBehavior = {
+  var PouchdbElements = window.PouchdbElements = window.PouchdbElements || {};
+  /**
+   * @polymerBehavior PouchdbElements.PouchdbBehavior
+   */
+  PoucbdbElements.PouchdbBehavior = {
     properties: {
       /**
        * The name of the PouchDB database in which the document exists.
        */
       dbName: String,
+
+      dbOptions: {
+        type: Object,
+        value: function() {
+          return {
+            // WebSQL is recommended for performance-critical applications
+            // see https://github.com/pouchdb/pouchdb/issues/4515#issuecomment-152206335
+            adapter: 'websql'
+          }
+        }
+      },
 
       /**
        * The PouchDB object corresponding to `dbname`.
@@ -23,7 +38,7 @@ API.
       db: {
         type: Object,
         notify: true,
-        computed: '_getDB(dbName)'
+        computed: '_getDB(dbName, dbOptions)'
       },
 
       /**
@@ -52,11 +67,11 @@ API.
       '_updateChangeListeners(db, changeOpts.*, _listenEvents)'
     ],
 
-    _getDB: function(dbName) {
+    _getDB: function(dbName, dbOptions) {
       if (!dbName) {
         return;
       }
-      return new PouchDB(dbName);
+      return new PouchDB(dbName, this.dbOptions);
     },
 
     _updateChangeListeners: function() {

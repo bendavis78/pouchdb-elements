@@ -10,12 +10,12 @@ as `<template is="dom-repeat">`.
 
 Example:
 
-    <pouchdb-collection db-name="mydb" 
+    <pouchdb-collection db-name="mydb"
       key-prefix="dino-"
       sort="name"
       data="{{dinosaurs}}">
     </pouchdb-collection>
-  
+
     <template is="dom-repeat" items="[[dinosaurs]]" as="dinosaur">
       <h4>[[dinosaur.name]]</h4>
       <span>Height: </span><span>[[dinosaur.height]]</span><span>m</span>
@@ -28,16 +28,16 @@ between different types of document. For example, one might select all "dino"
 documents by seting `startkey` to the prefix and `endkey` to the prefix followed
 by a large unicode value:
 
-    <pouchdb-collection db-name="mydb" 
-      startkey="dino-" 
+    <pouchdb-collection db-name="mydb"
+      startkey="dino-"
       endkey="dino-&#xFFFF;"
       data="{{data}}">
-    </pouchdb-collection> 
+    </pouchdb-collection>
 
 For convenience, the `key-prefix` attribute can be used to accomplish the same
 thing:
 
-    <pouchdb-collection db-name="mydb" data="{{data}}" key-prefix="dino-"> 
+    <pouchdb-collection db-name="mydb" data="{{data}}" key-prefix="dino-">
 
 *Note*: `key-prefix` has no effect when used together with either the `startkey`
 or `endkey` attributes.
@@ -74,10 +74,10 @@ attribute (note: this must use valid JSON quoting):
 
 It can also be bound to a javascript object:
 
-    <pouchdb-collection db-name="mydb" 
+    <pouchdb-collection db-name="mydb"
       selector="{{selector}}"
       data="{{data}}">
- 
+
 
 ### Performance considerations
 
@@ -86,7 +86,7 @@ document id (aka key) to filter results. When possible, use prefixes to
 distinguish between document types.
 
 For pagination, the `limit` and `skip` attributes are also available, but the
-same performance concerns as in CouchDB apply. Instead, use `startkey` and 
+same performance concerns as in CouchDB apply. Instead, use `startkey` and
 `endkey` to limit results to a given range.
 -->
 
@@ -98,13 +98,13 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
     is: 'pouchdb-collection',
 
     behaviors: [
-      Polymer.PouchdbBehavior
+      PouchdbElements.PouchdbBehavior
     ],
 
     properties: {
       /**
        * Defines a selector to filter the results using the PouchDB find()
-       * method. See the 
+       * method. See the
        * [pouchdb-find](https://github.com/nolanlawson/pouchdb-find#readme)
        * documentation for more info.
        */
@@ -146,10 +146,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
       data: {
         type: Array,
         readOnly: true,
-        notify: true,
-        value: function() {
-          return [];
-        }
+        notify: true
       },
       idFunc: {
         type: Object,
@@ -192,7 +189,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
     },
 
     observers: [
-      '_updateChangesFilter(db, _startKey, _endKey)',
+      '_updateChangesFilter(db, _startkey, _endkey)',
       '_updateIndex(db, _selector.*, _sort.*)',
       '_updateResults(db, _selector.*, fields.*, _sort.*, limit, skip, index)'
     ],
@@ -213,7 +210,7 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
     },
 
     remove: function(doc) {
-      return this.db.remove(doc._id, doc._rev).then(function() {
+      return this.db.remove(doc).then(function() {
         return this._updateResults();
       }.bind(this));
     },
@@ -373,10 +370,6 @@ same performance concerns as in CouchDB apply. Instead, use `startkey` and
         return this.db.find(this._findOpts);
       }.bind(this)).then(function(result) {
         this._setData(result.docs);
-        if (!this._loaded) {
-          this.fire('data-loaded', result, {bubbles: false});
-          this._loaded = true;
-        }
       }.bind(this));
     },
 
